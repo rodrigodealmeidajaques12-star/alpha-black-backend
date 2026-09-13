@@ -130,6 +130,7 @@ app.get(
 
 app.get(
     "/teste-supabase",
+    
     async function(req, res) {
 
         try {
@@ -188,6 +189,94 @@ app.get(
                         "Erro ao consultar Supabase.",
 
                     detalhes:
+                        erro.message
+
+                });
+
+        }
+
+    }
+);
+
+/* ================================
+   TESTAR AUTH DO SUPABASE
+================================ */
+
+app.get(
+    "/teste-auth/:id",
+
+    async function(req, res) {
+
+        try {
+
+            const id =
+                req.params.id;
+
+
+            const {
+                data,
+                error
+            } =
+                await supabase
+                    .auth
+                    .admin
+                    .getUserById(id);
+
+
+            if (error) {
+
+                console.error(
+                    "Erro teste Auth:",
+                    error
+                );
+
+
+                return res
+                    .status(500)
+                    .json({
+
+                        sucesso: false,
+
+                        erro:
+                            error.message
+
+                    });
+
+            }
+
+
+            return res.json({
+
+                sucesso: true,
+
+                usuario: {
+
+                    id:
+                        data.user.id,
+
+                    email:
+                        data.user.email
+
+                }
+
+            });
+
+
+        } catch (erro) {
+
+            console.error(
+                "Erro geral teste Auth:",
+                erro
+            );
+
+
+            return res
+                .status(500)
+                .json({
+
+                    sucesso: false,
+
+                    erro:
                         erro.message
 
                 });
