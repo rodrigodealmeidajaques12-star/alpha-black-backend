@@ -113,6 +113,7 @@ const payment =
 
 app.get(
     "/",
+
     function(req, res) {
 
         res.json({
@@ -130,7 +131,7 @@ app.get(
 
 app.get(
     "/teste-supabase",
-    
+
     async function(req, res) {
 
         try {
@@ -198,111 +199,43 @@ app.get(
     }
 );
 
-/* ================================
-   TESTAR AUTH DO SUPABASE
-================================ */
-
-app.get(
-    "/teste-auth/:id",
-
-    async function(req, res) {
-
-        try {
-
-            const id =
-                req.params.id;
-
-
-            const {
-                data,
-                error
-            } =
-                await supabase
-                    .auth
-                    .admin
-                    .getUserById(id);
-
-
-            if (error) {
-
-                console.error(
-                    "Erro teste Auth:",
-                    error
-                );
-
-
-                return res
-                    .status(500)
-                    .json({
-
-                        sucesso: false,
-
-                        erro:
-                            error.message
-
-                    });
-
-            }
-
-
-            return res.json({
-
-                sucesso: true,
-
-                usuario: {
-
-                    id:
-                        data.user.id,
-
-                    email:
-                        data.user.email
-
-                }
-
-            });
-
-
-        } catch (erro) {
-
-            console.error(
-                "Erro geral teste Auth:",
-                erro
-            );
-
-
-            return res
-                .status(500)
-                .json({
-
-                    sucesso: false,
-
-                    erro:
-                        erro.message
-
-                });
-
-        }
-
-    }
-);
-
 
 /* ================================
-   VALIDAR USUÁRIO
+   VALIDAR USUÁRIO PELO TOKEN
 ================================ */
 
 async function validarUsuario(
-    usuarioId,
-    email
+    req
 ) {
 
+    const authorization =
+        req.headers.authorization;
+
+
     if (
-        !usuarioId ||
-        !email
+        !authorization ||
+        !authorization.startsWith(
+            "Bearer "
+        )
     ) {
 
         throw new Error(
-            "Usuário não identificado."
+            "Token de autenticação não informado."
+        );
+
+    }
+
+
+    const token =
+        authorization
+            .substring(7)
+            .trim();
+
+
+    if (!token) {
+
+        throw new Error(
+            "Token de autenticação inválido."
         );
 
     }
@@ -314,52 +247,24 @@ async function validarUsuario(
     } =
         await supabase
             .auth
-            .admin
-            .getUserById(
-                usuarioId
+            .getUser(
+                token
             );
 
 
-    if (error) {
-
-        throw error;
-
-    }
-
-
     if (
+        error ||
         !data ||
         !data.user
     ) {
 
-        throw new Error(
-            "Usuário não encontrado."
+        console.error(
+            "Erro ao validar token:",
+            error
         );
 
-    }
-
-
-    const emailBanco =
-        String(
-            data.user.email || ""
-        )
-            .trim()
-            .toLowerCase();
-
-
-    const emailRecebido =
-        String(email)
-            .trim()
-            .toLowerCase();
-
-
-    if (
-        emailBanco !==
-        emailRecebido
-    ) {
-
         throw new Error(
-            "Usuário inválido."
+            "Sessão inválida ou expirada."
         );
 
     }
@@ -848,6 +753,7 @@ async function salvarPedido(
 
 app.post(
     "/criar-pix",
+
     async function(req, res) {
 
         let pedido = null;
@@ -856,23 +762,24 @@ app.post(
         try {
 
             const {
-                usuarioId,
-                email,
                 endereco,
                 itens
             } = req.body;
 
 
             /* ================================
-               VALIDAR USUÁRIO
+               VALIDAR TOKEN / USUÁRIO
             ================================ */
+
+            let usuario;
+
 
             try {
 
-                await validarUsuario(
-                    usuarioId,
-                    email
-                );
+                usuario =
+                    await validarUsuario(
+                        req
+                    );
 
             } catch (
                 erroUsuario
@@ -884,6 +791,33 @@ app.post(
 
                         erro:
                             erroUsuario.message
+
+                    });
+
+            }
+
+
+            /*
+                O ID e o e-mail agora vêm
+                diretamente do usuário autenticado
+                pelo Supabase.
+            */
+
+            const usuarioId =
+                usuario.id;
+
+            const email =
+                usuario.email;
+
+
+            if (!email) {
+
+                return res
+                    .status(401)
+                    .json({
+
+                        erro:
+                            "Usuário autenticado sem e-mail."
 
                     });
 
@@ -1021,7 +955,16 @@ app.post(
                     email:
                         email
 
-                }
+                },
+
+                /*
+                    Liga o pagamento do Mercado Pago
+                    ao pedido salvo no Supabase.
+                    Isso será importante para o webhook.
+                */
+
+                external_reference:
+                    pedido.id
 
             };
 
@@ -1200,6 +1143,7 @@ app.post(
 
 app.get(
     "/pagamento/:id",
+
     async function(req, res) {
 
         try {
@@ -1267,6 +1211,7 @@ const PORT =
 
 app.listen(
     PORT,
+
     function() {
 
         console.log(
